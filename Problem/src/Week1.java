@@ -1,43 +1,28 @@
 import java.util.*;
-
-public class Week1 {
-    static HashMap<String, Integer> users = new HashMap<>();
-    static HashMap<String, Integer> attempts = new HashMap<>();
-    static boolean checkAvailability(String username) {
-        attempts.put(username, attempts.getOrDefault(username, 0) + 1);
-        return !users.containsKey(username);
+import java.util.concurrent.atomic.AtomicInteger;
+public class Week1{
+    static HashMap<String, AtomicInteger> stock = new HashMap<>();
+    static HashMap<String, Queue<Integer>> waitlist = new HashMap<>();
+    static void addProduct(String productId, int qty) {
+        stock.put(productId, new AtomicInteger(qty));
+        waitlist.put(productId, new LinkedList<>());
     }
-    static List<String> suggest(String username) {
-        List<String> list = new ArrayList<>();
-        list.add(username + "1");
-        list.add(username + "2");
-        list.add(username.replace("_", "."));
-        return list;
-    }
-    static String getMostAttempted() {
-        String name = "";
-        int max = 0;
-        for (Map.Entry<String, Integer> e : attempts.entrySet()) {
-            if (e.getValue() > max) {
-                name = e.getKey();
-                max = e.getValue();
-            }
+    static void purchase(String productId, int userId) {
+        AtomicInteger s = stock.get(productId);
+        if (s.get() > 0) {
+            s.decrementAndGet();
+            System.out.println("Purchase successful. Remaining: " + s.get());
+        } else {
+            waitlist.get(productId).add(userId);
+            System.out.println("Added to waiting list. Position: " + waitlist.get(productId).size());
         }
-        return name + " (" + max + " attempts)";
     }
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
-        users.put("john_doe", 1);
-        users.put("admin", 2);
-        System.out.print("Enter username to check: ");
-        String username = sc.nextLine();
-        if (checkAvailability(username)) {
-            System.out.println("Username available");
-        } else {
-            System.out.println("Username taken");
-            System.out.println("Suggestions: " + suggest(username));
-        }
-        System.out.println("Most attempted username: " + getMostAttempted());
+        addProduct("IPHONE15", 2);
+        System.out.print("Enter user id: ");
+        int user = sc.nextInt();
+        purchase("IPHONE15", user);
         sc.close();
     }
 }
