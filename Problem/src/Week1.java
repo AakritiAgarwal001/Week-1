@@ -1,82 +1,79 @@
 import java.util.*;
 
 public class Week1 {
-    // Maps each n-gram to a set of Document IDs that contain it
-    private Map<String, Set<String>> ngramIndex = new HashMap<>();
-    private Map<String, Integer> documentTotalNgrams = new HashMap<>();
-    private final int N = 5; // Using 5-grams as suggested in the hints
+    // Metric Storage
+    private Map<String, Integer> pageViews = new HashMap<>();
+    private Map<String, Set<String>> uniqueVisitors = new HashMap<>();
+    private Map<String, Integer> trafficSources = new HashMap<>();
 
     /**
-     * Processes a document, breaks it into n-grams, and adds to the index.
+     * Processes an incoming page view event.
      */
-    public void addDocument(String docId, String content) {
-        String[] words = content.toLowerCase().split("\\s+");
-        if (words.length < N) return;
+    public void processEvent(String url, String userId, String source) {
+        // 1. Update total page views
+        pageViews.put(url, pageViews.getOrDefault(url, 0) + 1);
 
-        int count = 0;
-        for (int i = 0; i <= words.length - N; i++) {
-            StringBuilder sb = new StringBuilder();
-            for (int j = 0; j < N; j++) {
-                sb.append(words[i + j]).append(" ");
-            }
-            String ngram = sb.toString().trim();
+        // 2. Update unique visitors (Set handles duplicates automatically)
+        uniqueVisitors.computeIfAbsent(url, k -> new HashSet<>()).add(userId);
 
-            ngramIndex.computeIfAbsent(ngram, k -> new HashSet<>()).add(docId);
-            count++;
-        }
-        documentTotalNgrams.put(docId, count);
+        // 3. Update traffic source counts
+        trafficSources.put(source, trafficSources.getOrDefault(source, 0) + 1);
     }
 
     /**
-     * Analyzes a new document against the database to detect similarity.
+     * Returns the top N most visited pages using a PriorityQueue (Min-Heap).
+     * Time Complexity: O(P log N) where P is total unique pages.
      */
-    public void analyzeDocument(String newDocId, String content) {
-        String[] words = content.toLowerCase().split("\\s+");
-        List<String> inputNgrams = new ArrayList<>();
+    public List<Map.Entry<String, Integer>> getTopPages(int n) {
+        PriorityQueue<Map.Entry<String, Integer>> minHeap =
+                new PriorityQueue<>(Comparator.comparingInt(Map.Entry::getValue));
 
-        for (int i = 0; i <= words.length - N; i++) {
-            StringBuilder sb = new StringBuilder();
-            for (int j = 0; j < N; j++) {
-                sb.append(words[i + j]).append(" ");
-            }
-            inputNgrams.add(sb.toString().trim());
-        }
-
-        // Count matches against other documents
-        Map<String, Integer> matchCounts = new HashMap<>();
-        for (String ngram : inputNgrams) {
-            if (ngramIndex.containsKey(ngram)) {
-                for (String existingDocId : ngramIndex.get(ngram)) {
-                    matchCounts.put(existingDocId, matchCounts.getOrDefault(existingDocId, 0) + 1);
-                }
+        for (Map.Entry<String, Integer> entry : pageViews.entrySet()) {
+            minHeap.offer(entry);
+            if (minHeap.size() > n) {
+                minHeap.poll();
             }
         }
 
-        System.out.println("Analysis for: " + newDocId);
-        System.out.println("Extracted " + inputNgrams.size() + " n-grams");
+        List<Map.Entry<String, Integer>> topPages = new ArrayList<>(minHeap);
+        topPages.sort((a, b) -> b.getValue() - a.getValue()); // Sort descending for display
+        return topPages;
+    }
 
-        for (Map.Entry<String, Integer> entry : matchCounts.entrySet()) {
-            String otherDocId = entry.getKey();
-            int matches = entry.getValue();
-            double similarity = (double) matches / inputNgrams.size() * 100;
+    /**
+     * Displays the current dashboard statistics.
+     */
+    public void displayDashboard() {
+        System.out.println("\n--- REAL-TIME ANALYTICS DASHBOARD ---");
 
-            String status = similarity > 60 ? "PLAGIARISM DETECTED" :
-                    similarity > 10 ? "suspicious" : "clean";
-
-            System.out.printf("-> Found %d matching n-grams with \"%s\"\n", matches, otherDocId);
-            System.out.printf("-> Similarity: %.1f%% (%s)\n", similarity, status);
+        System.out.println("Top Pages:");
+        List<Map.Entry<String, Integer>> top = getTopPages(3);
+        for (Map.Entry<String, Integer> entry : top) {
+            String url = entry.getKey();
+            int views = entry.getValue();
+            int unique = uniqueVisitors.get(url).size();
+            System.out.printf("- %s: %d views (%d unique)\n", url, views, unique);
         }
+
+        System.out.println("\nTraffic Sources:");
+        int totalViews = pageViews.values().stream().mapToInt(Integer::intValue).sum();
+        trafficSources.forEach((source, count) -> {
+            double percentage = (double) count / totalViews * 100;
+            System.out.printf("- %s: %.1f%%\n", source, percentage);
+        });
     }
 
     public static void main(String[] args) {
-        Week1 detector = new Week1();
+        Week1 dashboard = new Week1();
 
-        // Sample Data
-        detector.addDocument("essay_089.txt", "the quick brown fox jumps over the lazy dog repeatedly");
-        detector.addDocument("essay_092.txt", "data structures are essential for efficient software development and hashing is key");
+        // Simulate traffic
+        dashboard.processEvent("/article/breaking-news", "user_1", "Google");
+        dashboard.processEvent("/article/breaking-news", "user_2", "Facebook");
+        dashboard.processEvent("/article/breaking-news", "user_1", "Google"); // Repeat user
+        dashboard.processEvent("/sports/championship", "user_3", "Direct");
+        dashboard.processEvent("/sports/championship", "user_4", "Google");
+        dashboard.processEvent("/home", "user_5", "Direct");
 
-        // Analyzing a suspicious document
-        String newEssay = "data structures are essential for efficient software development and hashing is very important";
-        detector.analyzeDocument("essay_123.txt", newEssay);
+        dashboard.displayDashboard();
     }
 }
